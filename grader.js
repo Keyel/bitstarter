@@ -1,5 +1,5 @@
-/*
 #!/usr/bin/env node
+/*
 Automatically grade files for the presence of specified HTML tags/attributes.
 Uses commander.js and cheerio. Teaches command line application development
 and basic DOM parsing.
@@ -24,8 +24,10 @@ References:
 var fs = require('fs');
 var program = require('commander');
 var cheerio = require('cheerio');
+var rest = require('restler');
 var HTMLFILE_DEFAULT = "index.html";
 var CHECKSFILE_DEFAULT = "checks.json";
+var URL_DEFAULT = "http://keyel-bitstarter.herokuapp.com/";
 
 var assertFileExists = function(infile) {
     var instr = infile.toString();
@@ -46,6 +48,10 @@ var loadChecks = function(checksfile) {
 
 var checkHtmlFile = function(htmlfile, checksfile) {
     $ = cheerioHtmlFile(htmlfile);
+    return check($, checksfile);
+};
+
+var check = function($, checksfile) {
     var checks = loadChecks(checksfile).sort();
     var out = {};
     for(var ii in checks) {
@@ -61,14 +67,38 @@ var clone = function(fn) {
     return fn.bind({});
 };
 
+var identity = function(x) {
+  return x;
+};
+
+var checkURL = function(url, checksfile) {
+    rest.get(url)
+      .on('success', function(data) {
+        var checkJson = check(cheerio.load(data), checksfile);
+        console.log(JSON.stringify(checkJson, null, 4));
+      })
+      .on('error', onURLError);
+};
+
+var onURLError = function(err) {
+  console.error("url error");
+  console.error(err);
+};
+
 if(require.main == module) {
     program
         .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
         .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
+        .option('-u, --url <html_url>', 'URL to index.html')
         .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+
+    if(program.url === undefined) {
+      var checkJson = checkHtmlFile(program.file, program.checks);
+      var outJson = JSON.stringify(checkJson, null, 4);
+      console.log(outJson);
+    } else {
+      checkURL(program.url, program.checks);  
+    }
 } else {
     exports.checkHtmlFile = checkHtmlFile;
 }
